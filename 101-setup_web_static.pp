@@ -1,71 +1,116 @@
-# puppet_web_static_setup.pp
+# Configures a web server for deployment of web_static.
 
-# Install Nginx
-class { 'nginx':
-  ensure => 'installed',
-}
+# Nginx configuration file
+$nginx_conf = "server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    add_header X-Served-By ${hostname};
+    root   /var/www/html;
+    index  index.html index.htm;
 
-# Create necessary directories
+    location /hbnb_static {
+        alias /data/web_static/current;
+        index index.html index.htm;
+    }
+
+    location /redirect_me {
+        return 301 http://cuberule.com/;
+    }
+
+    error_page 404 /404.html;
+    location /404 {
+      root /var/www/html;
+      internal;
+    }
+}"
+
+package { 'nginx':
+  ensure   => 'present',
+  provider => 'apt',
+} ->
+
 file { '/data':
-  ensure => 'directory',
-  owner  => 'ubuntu',
-  group  => 'ubuntu',
-}
-
-file { '/data/web_static':
-  ensure => 'directory',
-  owner  => 'ubuntu',
-  group  => 'ubuntu',
-}
-
-file { '/data/web_static/releases':
-  ensure => 'directory',
-  owner  => 'ubuntu',
-  group  => 'ubuntu',
-}
-
-file { '/data/web_static/shared':
-  ensure => 'directory',
-  owner  => 'ubuntu',
-  group  => 'ubuntu',
-}
-
-file { '/data/web_static/releases/test':
-  ensure => 'directory',
-  owner  => 'ubuntu',
-  group  => 'ubuntu',
-}
-
-# Create a fake HTML file
-file { '/data/web_static/releases/test/index.html':
-  ensure  => 'file',
-  content => 'This is a test',
+  ensure  => 'directory',
+  recurse => true,
   owner   => 'ubuntu',
   group   => 'ubuntu',
-}
+} ->
 
-# Create symbolic link
+file { '/var/www':
+  ensure => 'directory',
+} ->
+
+file { '/var/www/html':
+  ensure  => 'directory',
+  owner   => 'ubuntu',
+  group   => 'ubuntu',
+} ->
+
+file { '/data/web_static':
+  ensure  => 'directory',
+  owner   => 'ubuntu',
+  group   => 'ubuntu',
+} ->
+
+file { '/data/web_static/releases':
+  ensure  => 'directory',
+  owner   => 'ubuntu',
+  group   => 'ubuntu',
+} ->
+
+file { '/data/web_static/releases/test':
+  ensure  => 'directory',
+  owner   => 'ubuntu',
+  group   => 'ubuntu',
+} ->
+
+file { '/data/web_static/shared':
+  ensure  => 'directory',
+  owner   => 'ubuntu',
+  group   => 'ubuntu',
+} ->
+
+file { '/data/web_static/releases/test/index.html':
+  ensure  => 'present',
+  content => "Holberton School Puppet\n",
+  owner   => 'ubuntu',
+  group   => 'ubuntu',
+} ->
+
 file { '/data/web_static/current':
-  ensure => 'link',
+  ensure  => 'link',
   target => '/data/web_static/releases/test',
   owner  => 'ubuntu',
   group  => 'ubuntu',
-}
+} ->
 
-# Update Nginx configuration
+file { '/var/www/html/index.html':
+  ensure  => 'present',
+  content => "Holberton School Nginx\n",
+  owner   => 'ubuntu',
+  group   => 'ubuntu',
+} ->
+
+file { '/var/www/html/404.html':
+  ensure  => 'present',
+  content => "Ceci n'est pas une page\n",
+  owner   => 'ubuntu',
+  group   => 'ubuntu',
+} ->
+
 file { '/etc/nginx/sites-available/default':
-  ensure  => 'file',
-  content => template('nginx/default.erb'),
-  notify  => Service['nginx'],
-}
-
-exec { 'create_alias':
-  command => 'echo "alias /hbnb_static/ /data/web_static/current/;" >> /etc/nginx/sites-available/default',
-  unless  => 'grep "alias /hbnb_static/ /data/web_static/current/;" /etc/nginx/sites-available/default',
-  notify  => Service['nginx'],
-}
+  ensure  => 'present',
+  content => $nginx_conf,
+} ->
 
 service { 'nginx':
   ensure => 'running',
   enable => true,
+  require => [Package['nginx'], File['/etc/nginx/sites-available/default']],
+} ->
+
+exec { 'nginx-config-test':
+  command => '/usr/sbin/nginx -t',
+  path    => '/usr/bin/:/usr/sbin/',
+  require => Service['nginx'],
 }

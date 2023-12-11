@@ -1,37 +1,34 @@
-#!/usr/bin/env python3
-"""
-Fabric script to delete out-of-date archives
-"""
-
-from fabric.api import local, run, env, lcd
-from datetime import datetime
+#!/usr/bin/python3
+# Fabfile to delete out-of-date archives.
 import os
+from fabric.api import *
 
-env.hosts = ['<IP web-01>', '<IP web-02>']
-env.user = '<your_username>'
-env.key_filename = '<path_to_your_private_key>'
+env.hosts = ["104.196.168.90", "35.196.46.172"]
 
 def do_clean(number=0):
+    """Delete out-of-date archives.
+
+    Args:
+        number (int): The number of archives to keep.
+
+    If number is 0 or 1, keeps only the most recent archive. If
+    number is 2, keeps the most and second-most recent archives,
+    etc.
     """
-    Deletes out-of-date archives
-    """
-    number = int(number)
-    if number < 0:
-        return
+    number = max(1, int(number))
 
-    """Delete local archives"""
-    local_archives = sorted(os.listdir('versions'))
-    archives_to_delete_local = local_archives[:-number] if number > 1 else local_archives[:-1]
-    with lcd('versions'):
-        for archive in archives_to_delete_local:
-            local('rm -f {}'.format(archive))
+    # Local Cleanup
+    local_versions_path = "versions"
+    if not os.path.exists(local_versions_path):
+        local("mkdir -p {}".format(local_versions_path))
 
-    """Delete remote archives"""
-    run_archives = run('ls -1 /data/web_static/releases/')
-    remote_archives = run_archives.split()
-    archives_to_delete_remote = sorted(remote_archives)[:-number] if number > 1 else sorted(remote_archives)[:-1]
-    for archive in archives_to_delete_remote:
-        run('rm -f /data/web_static/releases/{}'.format(archive))
+    local_archives = sorted(os.listdir(local_versions_path))
+    archives_to_delete_local = local_archives[:-number]
+    [local("rm {}".format(os.path.join(local_versions_path, a))) for a in archives_to_delete_local]
 
-if __name__ == '__main__':
-    do_clean(2)
+    # Remote Cleanup
+    with cd("/data/web_static/releases"):
+        remote_archives = run("ls -tr").split()
+        remote_archives = [a for a in remote_archives if "web_static_" in a]
+        archives_to_delete_remote = remote_archives[:-number]
+        [run("rm -rf ./{}".format(a)) for a in archives_to_delete_remote]
