@@ -1,43 +1,45 @@
-#!/usr/bin/env bash
+#!/usr/bin/python3
+# Fabfile to distribute an archive to a web server.
+import os.path
+from fabric.api import env, put, run
 
-# Set up the web servers for the deployment of web_static
 
-# Update package list and upgrade
-sudo apt-get -y update && sudo apt-get -y upgrade
+env.hosts = ["104.196.168.90", "35.196.46.172"]
 
-# Define paths
-WEB_STATIC_PATH="/data/web_static"
-RELEASES_PATH="$WEB_STATIC_PATH/releases/test"
-SHARED_PATH="$WEB_STATIC_PATH/shared"
+def do_deploy(archive_path):
+    """Distributes an archive to a web server.
 
-# Ensure paths exist
-sudo mkdir -p "$RELEASES_PATH" "$SHARED_PATH"
+    Args:
+        archive_path (str): The local path of the archive to distribute.
 
-# Create a test index.html file
-echo "This is a test" | sudo tee "$RELEASES_PATH/index.html"
+    Returns:
+        bool: True if the deployment is successful, False otherwise.
+    """
+    if not os.path.isfile(archive_path):
+        return False
 
-# Create symbolic link
-sudo ln -sf "$RELEASES_PATH" "$WEB_STATIC_PATH/current"
+    file = os.path.basename(archive_path)
+    name = file.split(".")[0]
 
-# Change ownership
-sudo chown -hR ubuntu:ubuntu "$WEB_STATIC_PATH"
+    # Upload archive to /tmp directory on the remote server
+    if put(archive_path, f"/tmp/{file}").failed:
+        return False
 
-# Update Nginx configuration
-sudo tee /etc/nginx/sites-available/web_static <<EOF
-server {
-    listen 80 default_server;
-    server_name _;
+    # Create necessary directories and extract the archive
+    commands = [
+        f"rm -rf /data/web_static/releases/{name}/",
+        f"mkdir -p /data/web_static/releases/{name}/",
+        f"tar -xzf /tmp/{file} -C /data/web_static/releases/{name}/",
+        f"rm /tmp/{file}",
+        f"mv /data/web_static/releases/{name}/web_static/* /data/web_static/releases/{name}/",
+        f"rm -rf /data/web_static/releases/{name}/web_static",
+        f"rm -rf /data/web_static/current",
+        f"ln -s /data/web_static/releases/{name}/ /data/web_static/current",
+    ]
 
-    location /hbnb_static/ {
-        alias $WEB_STATIC_PATH/current/;
-    }
+    # Execute the commands on the remote server and check for failures
+    for command in commands:
+        if run(command).failed:
+            return False
 
-    # Additional server configuration if needed
-}
-EOF
-
-# Create a symbolic link to enable the configuration
-sudo ln -s /etc/nginx/sites-available/web_static /etc/nginx/sites-enabled/
-
-# Restart Nginx
-sudo service nginx restart
+    return True
