@@ -1,30 +1,43 @@
-#!/usr/bin/python3
-"""
-Fabric script based on the file 1-pack_web_static.py that distributes an
-archive to the web servers
-"""
+#!/usr/bin/env bash
 
-from fabric.api import put, run, env
-from os.path import exists
-env.hosts = ['52.55.249.213', '54.157.32.137']
+# Set up the web servers for the deployment of web_static
 
+# Update package list and upgrade
+sudo apt-get -y update && sudo apt-get -y upgrade
 
-def do_deploy(archive_path):
-    """distributes an archive to the web servers"""
-    if exists(archive_path) is False:
-        return False
-    try:
-        file_n = archive_path.split("/")[-1]
-        no_ext = file_n.split(".")[0]
-        path = "/data/web_static/releases/"
-        put(archive_path, '/tmp/')
-        run('mkdir -p {}{}/'.format(path, no_ext))
-        run('tar -xzf /tmp/{} -C {}{}/'.format(file_n, path, no_ext))
-        run('rm /tmp/{}'.format(file_n))
-        run('mv {0}{1}/web_static/* {0}{1}/'.format(path, no_ext))
-        run('rm -rf {}{}/web_static'.format(path, no_ext))
-        run('rm -rf /data/web_static/current')
-        run('ln -s {}{}/ /data/web_static/current'.format(path, no_ext))
-        return True
-    except:
-        return False
+# Define paths
+WEB_STATIC_PATH="/data/web_static"
+RELEASES_PATH="$WEB_STATIC_PATH/releases/test"
+SHARED_PATH="$WEB_STATIC_PATH/shared"
+
+# Ensure paths exist
+sudo mkdir -p "$RELEASES_PATH" "$SHARED_PATH"
+
+# Create a test index.html file
+echo "This is a test" | sudo tee "$RELEASES_PATH/index.html"
+
+# Create symbolic link
+sudo ln -sf "$RELEASES_PATH" "$WEB_STATIC_PATH/current"
+
+# Change ownership
+sudo chown -hR ubuntu:ubuntu "$WEB_STATIC_PATH"
+
+# Update Nginx configuration
+sudo tee /etc/nginx/sites-available/web_static <<EOF
+server {
+    listen 80 default_server;
+    server_name _;
+
+    location /hbnb_static/ {
+        alias $WEB_STATIC_PATH/current/;
+    }
+
+    # Additional server configuration if needed
+}
+EOF
+
+# Create a symbolic link to enable the configuration
+sudo ln -s /etc/nginx/sites-available/web_static /etc/nginx/sites-enabled/
+
+# Restart Nginx
+sudo service nginx restart
