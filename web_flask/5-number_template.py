@@ -38,7 +38,23 @@ def c(text):
 
 @app.route('/python/', strict_slashes=False)
 @app.route('/python/<text>', strict_slashes=False)
-def python(text):
+def python(text='is cool'):
 	"""displays 'python' followed by the value of the text variable"""
 	text = text.replace("_", " ")
 	return "Python {}".format(text)
+
+
+@app.route('/number/<int:n>', strict_slashes=False)
+def number(n):
+	"""Displays 'n is a number' only if 'n' is an interger"""
+	return "{} is a number".format(n)
+
+
+@app.route("/number_template/<int:n>", strict_slashes=False)
+def number_template(n):
+	"""displays HTML page only if 'n' is an interger"""
+	return render_template("5-number.html", n=n)
+
+
+if __name__ == "main":
+	app.run(host="0.0.0.0")
