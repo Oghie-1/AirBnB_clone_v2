@@ -39,5 +39,15 @@ def c(text):
 
 
 app.route('/python/', strict_slashes=False)
+app.route("/python/(<text>)", strict_slashes=False)
 def python(text="is cool"):
-	"""Displays"
+	"""Displays Python followed by the text variable"""
+	text = text.replace("_", " ")
+	return "Python {}".format(text)
+
+
+app.route('/number/', strict_slashes=False)
+app.route('/number/<int:n>', strict_slashes=False)
+def number(n):
+	"""Displays 'n is a number' only if n is an interger"""
+	return <
